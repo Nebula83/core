@@ -9,7 +9,6 @@ import eiscp
 import voluptuous as vol
 
 from homeassistant.components.media_player import (
-    DOMAIN,
     MediaPlayerDeviceClass,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
@@ -42,12 +41,14 @@ from .const import (
     CONF_SOURCES,
     CONF_SOURCES_DEFAULT,
     DEFAULT_PLAYABLE_SOURCES,
+    DOMAIN,
     HDMI_OUTPUT_ACCEPTED_VALUES,
     MAXIMUM_UPDATE_RETRIES,
     SERVICE_EISCP_COMMAND,
     SERVICE_SELECT_HDMI_OUTPUT,
 )
 from .entity import OnkyoEntity
+from .helpers import parse_onkyo_payload
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,22 +78,6 @@ SUPPORT_ONKYO = (
     | MediaPlayerEntityFeature.VOLUME_MUTE
     | MediaPlayerEntityFeature.VOLUME_STEP
 )
-
-
-def _parse_onkyo_payload(payload):
-    """Parse a payload returned from the eiscp library."""
-    if isinstance(payload, bool):
-        # command not supported by the device
-        return False
-
-    if len(payload) < 2:
-        # no value
-        return None
-
-    if isinstance(payload[1], str):
-        return payload[1].split(",")
-
-    return payload[1]
 
 
 def _tuple_get(tup, index, default=None):
@@ -182,6 +167,7 @@ async def async_setup_entry(
     host = entry.data[CONF_HOST]
     try:
         receiver = eiscp.eISCP(host)
+
         hosts.append(
             OnkyoDevice(
                 entry,
@@ -348,17 +334,7 @@ class OnkyoDevice(OnkyoEntity, MediaPlayerEntity):
 
     def command(self, command):
         """Run an eiscp command and catch connection errors."""
-        try:
-            result = self._receiver.command(command)
-        except (ValueError, OSError, AttributeError, AssertionError):
-            if self._receiver.command_socket:
-                self._receiver.command_socket = None
-                _LOGGER.debug("Resetting connection to %s", self.name)
-            else:
-                _LOGGER.info("%s is disconnected. Attempting to reconnect", self.name)
-            return False
-        _LOGGER.debug("Result for %s: %s", command, result)
-        return result
+        self.command(command)
 
     def update(self) -> None:
         """Get the latest state from the device."""
@@ -386,6 +362,7 @@ class OnkyoDevice(OnkyoEntity, MediaPlayerEntity):
         mute_raw = self.command("audio-muting query")
         current_source_raw = self.command("input-selector query")
         current_sound_mode_raw = self.command("listening-mode query")
+
         # If the following command is sent to a device with only one HDMI out,
         # the display shows 'Not Available'.
         # We avoid this by checking if HDMI out is supported
@@ -398,20 +375,21 @@ class OnkyoDevice(OnkyoEntity, MediaPlayerEntity):
         if self._audio_info_supported:
             audio_information_raw = self.command("audio-information query")
             self._parse_audio_information(audio_information_raw)
+
         if self._video_info_supported:
             video_information_raw = self.command("video-information query")
             self._parse_video_information(video_information_raw)
         if not (volume_raw and mute_raw and current_source_raw):
             return
 
-        sources = _parse_onkyo_payload(current_source_raw)
+        sources = parse_onkyo_payload(current_source_raw)
         for source in sources:
             if source in self._source_mapping:
                 self._attr_source = self._source_mapping[source]
                 break
             self._attr_source = "_".join(sources)
 
-        sound_modes = _parse_onkyo_payload(current_sound_mode_raw)
+        sound_modes = parse_onkyo_payload(current_sound_mode_raw)
         for sound_mode in sound_modes:
             if sound_mode in self._sound_mode_list_mapping:
                 self._attr_sound_mode = self._sound_mode_list_mapping[sound_mode]
@@ -499,7 +477,7 @@ class OnkyoDevice(OnkyoEntity, MediaPlayerEntity):
         self.command(f"hdmi-output-selector={output}")
 
     def _parse_audio_information(self, audio_information_raw):
-        values = _parse_onkyo_payload(audio_information_raw)
+        values = parse_onkyo_payload(audio_information_raw)
         if values is False:
             self._audio_info_supported = False
             return
@@ -518,7 +496,7 @@ class OnkyoDevice(OnkyoEntity, MediaPlayerEntity):
             self._attr_extra_state_attributes.pop(ATTR_AUDIO_INFORMATION, None)
 
     def _parse_video_information(self, video_information_raw):
-        values = _parse_onkyo_payload(video_information_raw)
+        values = parse_onkyo_payload(video_information_raw)
         if values is False:
             self._video_info_supported = False
             return
