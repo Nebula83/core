@@ -48,7 +48,7 @@ from .const import (
     SERVICE_SELECT_HDMI_OUTPUT,
 )
 from .entity import OnkyoEntity
-from .helpers import parse_onkyo_payload
+from .helpers import onkyo_command, parse_onkyo_payload
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -334,7 +334,7 @@ class OnkyoDevice(OnkyoEntity, MediaPlayerEntity):
 
     def command(self, command):
         """Run an eiscp command and catch connection errors."""
-        self.command(command)
+        onkyo_command(self._receiver, command)
 
     def update(self) -> None:
         """Get the latest state from the device."""
