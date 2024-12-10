@@ -67,6 +67,7 @@ async def test_manual_valid_host(hass: HomeAssistant) -> None:
             user_input={CONF_HOST: "sample-host-name"},
         )
 
+        assert select_result["type"] is FlowResultType.FORM
         assert select_result["step_id"] == "configure_receiver"
         assert (
             select_result["description_placeholders"]["name"]
@@ -95,6 +96,7 @@ async def test_manual_invalid_host(hass: HomeAssistant) -> None:
             user_input={CONF_HOST: "sample-host-name"},
         )
 
+    assert host_result["type"] is FlowResultType.FORM
     assert host_result["step_id"] == "manual"
     assert host_result["errors"]["base"] == "cannot_connect"
 
@@ -121,6 +123,7 @@ async def test_manual_valid_host_unexpected_error(hass: HomeAssistant) -> None:
             user_input={CONF_HOST: "sample-host-name"},
         )
 
+    assert host_result["type"] is FlowResultType.FORM
     assert host_result["step_id"] == "manual"
     assert host_result["errors"]["base"] == "unknown"
 
@@ -186,7 +189,6 @@ async def test_discovery_with_new_and_existing_found(hass: HomeAssistant) -> Non
         )
 
         assert form_result["type"] is FlowResultType.FORM
-
         assert form_result["data_schema"] is not None
         schema = form_result["data_schema"].schema
         container = schema["device"].container
@@ -218,6 +220,7 @@ async def test_discovery_with_one_selected(hass: HomeAssistant) -> None:
             user_input={"device": "id42"},
         )
 
+        assert select_result["type"] is FlowResultType.FORM
         assert select_result["step_id"] == "configure_receiver"
         assert select_result["description_placeholders"]["name"] == "type 42 (host 42)"
 
@@ -252,6 +255,7 @@ async def test_configure_empty_source_list(hass: HomeAssistant) -> None:
             user_input={"volume_resolution": 200, "input_sources": []},
         )
 
+        assert configure_result["type"] is FlowResultType.FORM
         assert configure_result["errors"] == {
             "input_sources": "empty_input_source_list"
         }
